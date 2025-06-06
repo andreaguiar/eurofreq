@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EuroMillions Frequency Distribution</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background-color: #1c1c1c;
+      color: #ccc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #eee;
+    }
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      background-color: #2b2b2b;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #000;
+      margin-top: 2rem;
+    }
+    #countInput {
+      background-color: #333;
+      border: none;
+      color: #eee;
+      padding: 0.5rem;
+      border-radius: 5px;
+      margin-right: 0.5rem;
+    }
+    #fetchButton {
+      background-color: #444;
+      border: none;
+      color: #eee;
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #fetchButton:hover {
+      background-color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>EuroMillions Frequency Distribution</h1>
+    <div style="text-align: center; margin-bottom: 1rem;">
+      <input type="number" id="countInput" value="20" min="1" />
+      <button id="fetchButton">Fetch Draws</button>
+    </div>
+    <canvas id="mainChart" width="800" height="400"></canvas>
+    <h2>Lucky Stars Frequency</h2>
+    <canvas id="starsChart" width="800" height="400"></canvas>
+  </div>
+
+  <script>
+    let chartInstances = {};
+
+    async function fetchDraws(count) {
+      const proxyURL = "https://api.allorigins.win/raw?url=";
+      const rssURL = "https://www.euro-millions.com/results/feed/rss";
+      try {
+        const response = await fetch(proxyURL + encodeURIComponent(rssURL));
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const text = await response.text();
+
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, "application/xml");
+        const items = Array.from(xml.querySelectorAll("item")).slice(0, count);
+
+        const draws = items.map(item => {
+          const title = item.querySelector("title").textContent;
+          const regex = /\d{1,2}/g;
+          const numbers = title.match(regex).map(Number);
+          return {
+            main: numbers.slice(0, 5),
+            stars: numbers.slice(5, 7)
+          };
+        });
+
+        return draws;
+      } catch (err) {
+        console.error("Failed to fetch or parse EuroMillions draws:", err);
+        alert("Failed to fetch EuroMillions data. See console for details.");
+        return [];
+      }
+    }
+
+    document.getElementById('fetchButton').addEventListener('click', async () => {
+      console.log("Fetch button clicked");
+      const count = parseInt(document.getElementById('countInput').value);
+      const draws = await fetchDraws(count);
+      if (draws.length === 0) return;
+
+      const mainFreq = Array(50).fill(0);
+      const starFreq = Array(12).fill(0);
+
+      draws.forEach(draw => {
+        draw.main.forEach(n => mainFreq[n - 1]++);
+        draw.stars.forEach(n => starFreq[n - 1]++);
+      });
+
+      const sortedMain = mainFreq.map((val, idx) => ({ number: idx + 1, freq: val }))
+                                 .sort((a, b) => b.freq - a.freq);
+
+      const sortedStars = starFreq.map((val, idx) => ({ number: idx + 1, freq: val }))
+                                  .sort((a, b) => b.freq - a.freq);
+
+      renderChart('mainChart', sortedMain.map(e => e.number), sortedMain.map(e => e.freq), 'Main Numbers Frequency');
+      renderChart('starsChart', sortedStars.map(e => e.number), sortedStars.map(e => e.freq), 'Lucky Stars Frequency');
+    });
+
+    function renderChart(canvasId, labels, data, label) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      if (chartInstances[canvasId]) {
+        chartInstances[canvasId].destroy();
+      }
+      chartInstances[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data,
+            backgroundColor: '#888',
+            borderColor: '#bbb',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              ticks: { color: '#ccc' },
+              grid: { color: '#333' }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: '#ccc' },
+              grid: { color: '#333' }
+            }
+          },
+          plugins: {
+            legend: { labels: { color: '#ccc' } }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
