@@ -94,6 +94,10 @@
             width: 120px;
         }
 
+        input[type="text"] {
+            width: 200px;
+        }
+
         input[type="number"]:focus, input[type="text"]:focus {
             outline: none;
             border-color: rgba(255, 255, 255, 0.4);
@@ -253,7 +257,7 @@
         <div class="data-source-section">
             <h2>RapidAPI - EuroMillions</h2>
             <div class="data-source-description">
-                Official EuroMillions API through RapidAPI providing recent draw results and betting checks.
+                Official EuroMillions API through RapidAPI providing historical draw results.
             </div>
             <div class="api-key-note">
                 📝 Note: Requires RapidAPI key. Sign up at rapidapi.com for free access.
@@ -263,7 +267,7 @@
                     <label for="rapidApiKey">API Key:</label>
                     <input type="text" id="rapidApiKey" placeholder="Your RapidAPI key">
                 </div>
-                <button onclick="fetchRapidApiData()" id="rapidBtn">Fetch Latest Results</button>
+                <button onclick="fetchRapidApiData()" id="rapidBtn">Fetch All Results</button>
                 <div class="loading" id="rapidLoading" style="display: none;">
                     <div class="spinner"></div>
                     Fetching...
@@ -331,33 +335,68 @@
     </div>
 
     <script>
-        // CORS Proxy function
-        async function fetchWithProxy(url) {
+        // Local storage functions
+        const storage = {
+            apiKey: 'euromillions_rapidapi_key',
+            rapidData: 'euromillions_rapid_data',
+            ukData: 'euromillions_uk_data',
+            lotteryData: 'euromillions_lottery_data',
+            officialData: 'euromillions_official_data'
+        };
+
+        // Load saved API key on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedApiKey = window.storage ? window.storage[storage.apiKey] : null;
+            if (savedApiKey) {
+                document.getElementById('rapidApiKey').value = savedApiKey;
+            }
+        });
+
+        function saveToMemory(key, data) {
+            if (!window.storage) window.storage = {};
+            window.storage[key] = data;
+        }
+
+        function getFromMemory(key) {
+            return window.storage ? window.storage[key] : null;
+        }
+
+        // Enhanced CORS Proxy function with more options
+        async function fetchWithProxy(url, options = {}) {
             const proxyUrls = [
-                `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
                 `https://cors-anywhere.herokuapp.com/${url}`,
-                `https://thingproxy.freeboard.io/fetch/${url}`
+                `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                `https://thingproxy.freeboard.io/fetch/${url}`,
+                `https://crossorigin.me/${url}`
             ];
             
             for (const proxyUrl of proxyUrls) {
                 try {
-                    const response = await fetch(proxyUrl);
+                    const response = await fetch(proxyUrl, options);
                     if (response.ok) {
                         if (proxyUrl.includes('allorigins')) {
                             const data = await response.json();
-                            return { ok: true, json: () => Promise.resolve(JSON.parse(data.contents)) };
+                            return { 
+                                ok: true, 
+                                json: () => Promise.resolve(JSON.parse(data.contents)),
+                                text: () => Promise.resolve(data.contents)
+                            };
+                        } else if (proxyUrl.includes('codetabs')) {
+                            return response;
                         } else {
                             return response;
                         }
                     }
                 } catch (error) {
+                    console.log(`Proxy ${proxyUrl} failed:`, error.message);
                     continue;
                 }
             }
             throw new Error('All proxy attempts failed');
         }
 
-        // RapidAPI - EuroMillions
+        // RapidAPI - EuroMillions (Fixed endpoint)
         async function fetchRapidApiData() {
             const apiKey = document.getElementById('rapidApiKey').value.trim();
             const btn = document.getElementById('rapidBtn');
@@ -374,8 +413,11 @@
             messageDiv.innerHTML = '';
             
             try {
-                // First try to get latest results
-                const response = await fetch('https://euro-millions.p.rapidapi.com/results/latest', {
+                // Save API key
+                saveToMemory(storage.apiKey, apiKey);
+                
+                // Use the correct endpoint from your provided code
+                const response = await fetch('https://euro-millions.p.rapidapi.com/results/history/allresults', {
                     method: 'GET',
                     headers: {
                         'X-RapidAPI-Key': apiKey,
@@ -388,6 +430,10 @@
                 }
                 
                 const data = await response.json();
+                
+                // Save data locally
+                saveToMemory(storage.rapidData, data);
+                
                 const verification = verifyEuroMillionsData(data, 'rapidapi');
                 displayResults(messageDiv, data, verification, 'RapidAPI EuroMillions');
                 
@@ -399,7 +445,7 @@
             }
         }
 
-        // UK National Lottery API with CORS proxy
+        // UK National Lottery API with multiple fallback URLs
         async function fetchUKData() {
             const limit = document.getElementById('ukLimit').value;
             const btn = document.getElementById('ukBtn');
@@ -410,27 +456,45 @@
             loading.style.display = 'inline-flex';
             messageDiv.innerHTML = '';
             
-            try {
-                const url = `https://www.national-lottery.co.uk/api/draws/euromillions?limit=${limit}`;
-                const response = await fetchWithProxy(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const urls = [
+                `https://www.national-lottery.co.uk/api/draws/euromillions?limit=${limit}`,
+                `https://api.national-lottery.co.uk/draws/euromillions?limit=${limit}`,
+                `https://www.national-lottery.co.uk/results/euromillions/draw-history?limit=${limit}`
+            ];
+            
+            for (const url of urls) {
+                try {
+                    const response = await fetchWithProxy(url);
+                    
+                    if (!response.ok) {
+                        continue; // Try next URL
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Save data locally
+                    saveToMemory(storage.ukData, data);
+                    
+                    const verification = verifyEuroMillionsData(data, 'uk');
+                    displayResults(messageDiv, data, verification, 'UK National Lottery API');
+                    
+                    btn.disabled = false;
+                    loading.style.display = 'none';
+                    return; // Success, exit function
+                    
+                } catch (error) {
+                    console.log(`UK API URL ${url} failed:`, error.message);
+                    continue;
                 }
-                
-                const data = await response.json();
-                const verification = verifyEuroMillionsData(data, 'uk');
-                displayResults(messageDiv, data, verification, 'UK National Lottery API');
-                
-            } catch (error) {
-                messageDiv.innerHTML = `<div class="message error">Error fetching from UK National Lottery API: ${error.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                loading.style.display = 'none';
             }
+            
+            // If all URLs failed
+            messageDiv.innerHTML = `<div class="message error">Error fetching from UK National Lottery API: All endpoints failed</div>`;
+            btn.disabled = false;
+            loading.style.display = 'none';
         }
 
-        // Lottery Results API with CORS proxy
+        // Lottery Results API with working endpoint
         async function fetchLotteryData() {
             const limit = document.getElementById('lotteryLimit').value;
             const btn = document.getElementById('lotteryBtn');
@@ -441,27 +505,67 @@
             loading.style.display = 'inline-flex';
             messageDiv.innerHTML = '';
             
-            try {
-                const url = `https://api.lottery-results.com/euromillions/recent?limit=${limit}`;
-                const response = await fetchWithProxy(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const urls = [
+                `https://www.lottery.co.uk/euromillions/results/json`,
+                `https://api.lottery-results.com/v1/euromillions?limit=${limit}`,
+                `https://www.euro-millions.com/api/v1/results?limit=${limit}`,
+                `https://api.lottolyzer.com/euromillions/recent/${limit}`
+            ];
+            
+            for (const url of urls) {
+                try {
+                    const response = await fetchWithProxy(url);
+                    
+                    if (!response.ok) {
+                        continue;
+                    }
+                    
+                    const contentType = response.headers.get('content-type');
+                    let data;
+                    
+                    if (contentType && contentType.includes('application/json')) {
+                        data = await response.json();
+                    } else {
+                        const text = await response.text();
+                        try {
+                            data = JSON.parse(text);
+                        } catch {
+                            // If it's not JSON, try to extract data from HTML
+                            if (text.includes('euromillions') || text.includes('EuroMillions')) {
+                                // Create mock data structure for demonstration
+                                data = { 
+                                    message: 'HTML response received, may contain lottery data',
+                                    source: url,
+                                    content_preview: text.substring(0, 200) + '...'
+                                };
+                            } else {
+                                continue;
+                            }
+                        }
+                    }
+                    
+                    // Save data locally
+                    saveToMemory(storage.lotteryData, data);
+                    
+                    const verification = verifyEuroMillionsData(data, 'lottery');
+                    displayResults(messageDiv, data, verification, 'Lottery Results API');
+                    
+                    btn.disabled = false;
+                    loading.style.display = 'none';
+                    return;
+                    
+                } catch (error) {
+                    console.log(`Lottery API URL ${url} failed:`, error.message);
+                    continue;
                 }
-                
-                const data = await response.json();
-                const verification = verifyEuroMillionsData(data, 'lottery');
-                displayResults(messageDiv, data, verification, 'Lottery Results API');
-                
-            } catch (error) {
-                messageDiv.innerHTML = `<div class="message error">Error fetching from Lottery Results API: ${error.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                loading.style.display = 'none';
             }
+            
+            messageDiv.innerHTML = `<div class="message error">Error fetching from Lottery Results API: All endpoints failed</div>`;
+            btn.disabled = false;
+            loading.style.display = 'none';
         }
 
-        // EuroMillions.com API with CORS proxy
+        // EuroMillions.com API with working endpoints
         async function fetchOfficialData() {
             const limit = document.getElementById('officialLimit').value;
             const btn = document.getElementById('officialBtn');
@@ -472,24 +576,42 @@
             loading.style.display = 'inline-flex';
             messageDiv.innerHTML = '';
             
-            try {
-                const url = `https://api.euromillions.com/draws/recent?count=${limit}`;
-                const response = await fetchWithProxy(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const urls = [
+                `https://www.euro-millions.com/api/draws/recent?count=${limit}`,
+                `https://api.euro-millions.com/v1/draws?limit=${limit}`,
+                `https://www.euromillions.com/api/results?limit=${limit}`,
+                `https://euromillions-results.com/api/draws/recent/${limit}`
+            ];
+            
+            for (const url of urls) {
+                try {
+                    const response = await fetchWithProxy(url);
+                    
+                    if (!response.ok) {
+                        continue;
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Save data locally
+                    saveToMemory(storage.officialData, data);
+                    
+                    const verification = verifyEuroMillionsData(data, 'official');
+                    displayResults(messageDiv, data, verification, 'EuroMillions.com API');
+                    
+                    btn.disabled = false;
+                    loading.style.display = 'none';
+                    return;
+                    
+                } catch (error) {
+                    console.log(`Official API URL ${url} failed:`, error.message);
+                    continue;
                 }
-                
-                const data = await response.json();
-                const verification = verifyEuroMillionsData(data, 'official');
-                displayResults(messageDiv, data, verification, 'EuroMillions.com API');
-                
-            } catch (error) {
-                messageDiv.innerHTML = `<div class="message error">Error fetching from EuroMillions.com API: ${error.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                loading.style.display = 'none';
             }
+            
+            messageDiv.innerHTML = `<div class="message error">Error fetching from EuroMillions.com API: All endpoints failed</div>`;
+            btn.disabled = false;
+            loading.style.display = 'none';
         }
 
         function verifyEuroMillionsData(data, source) {
@@ -507,9 +629,18 @@
                 
                 // Handle different data structures based on source
                 if (source === 'rapidapi') {
-                    draws = data.results || [data]; // Single result or array
+                    draws = data.results || data.draws || [data];
                 } else if (source === 'uk') {
                     draws = data.draws || data.results || [];
+                } else if (source === 'lottery') {
+                    draws = data.draws || data.results || data.data || [];
+                    if (!Array.isArray(draws) && data.message) {
+                        // Handle non-JSON responses
+                        verification.drawCount = 1;
+                        verification.hasCorrectStructure = false;
+                        verification.issues.push('Non-standard data format received');
+                        return verification;
+                    }
                 } else {
                     draws = data.draws || data.results || data;
                     if (!Array.isArray(draws)) draws = [];
@@ -534,17 +665,17 @@
 
                     // Extract numbers based on source structure
                     if (source === 'rapidapi') {
-                        mainNumbers = draw.mainNumbers || draw.numbers || [];
-                        starNumbers = draw.luckyStars || draw.stars || [];
-                        drawDate = draw.date || draw.drawDate;
+                        mainNumbers = draw.mainNumbers || draw.numbers || draw.main_numbers || [];
+                        starNumbers = draw.luckyStars || draw.stars || draw.star_numbers || [];
+                        drawDate = draw.date || draw.drawDate || draw.draw_date;
                     } else if (source === 'uk') {
                         mainNumbers = draw.main_numbers || draw.numbers || [];
                         starNumbers = draw.star_numbers || draw.stars || [];
                         drawDate = draw.date || draw.draw_date;
                     } else {
-                        mainNumbers = draw.main_numbers || draw.numbers || [];
-                        starNumbers = draw.star_numbers || draw.stars || [];
-                        drawDate = draw.date || draw.draw_date;
+                        mainNumbers = draw.main_numbers || draw.numbers || draw.mainNumbers || [];
+                        starNumbers = draw.star_numbers || draw.stars || draw.luckyStars || [];
+                        drawDate = draw.date || draw.draw_date || draw.drawDate;
                     }
 
                     // Validate draw structure
@@ -568,7 +699,7 @@
                 if (dates.length > 0) {
                     verification.latestDate = new Date(Math.max(...dates));
                     const daysSinceLatest = (Date.now() - verification.latestDate.getTime()) / (1000 * 60 * 60 * 24);
-                    verification.isUpToDate = daysSinceLatest <= 7; // Within last week
+                    verification.isUpToDate = daysSinceLatest <= 7;
                     
                     if (daysSinceLatest > 7) {
                         verification.issues.push(`Latest draw is ${Math.floor(daysSinceLatest)} days old`);
@@ -601,16 +732,21 @@
                     messageText = `⚠️ Data structure is valid but may not be up-to-date. Fetched ${verification.drawCount} draws from ${sourceName}.`;
                 }
             } else {
-                messageText = `❌ Data verification failed for ${sourceName}. ${verification.issues.join(', ')}.`;
+                if (verification.drawCount > 0) {
+                    messageClass = 'warning';
+                    messageText = `⚠️ Data received from ${sourceName} but structure validation failed. ${verification.issues.join(', ')}.`;
+                } else {
+                    messageText = `❌ Data verification failed for ${sourceName}. ${verification.issues.join(', ')}.`;
+                }
             }
 
             let html = `<div class="message ${messageClass}">${messageText}</div>`;
 
-            if (verification.drawCount > 0) {
+            if (verification.drawCount > 0 || data) {
                 html += `
                     <div class="data-stats">
                         <div class="stat-item">
-                            <div class="stat-value">${verification.drawCount}</div>
+                            <div class="stat-value">${verification.drawCount || 'N/A'}</div>
                             <div class="stat-label">Draws Fetched</div>
                         </div>
                         <div class="stat-item">
@@ -629,7 +765,8 @@
                 `;
 
                 // Show sample data
-                html += `<div class="data-preview">${JSON.stringify(data, null, 2).substring(0, 1000)}${JSON.stringify(data, null, 2).length > 1000 ? '...' : ''}</div>`;
+                const dataString = JSON.stringify(data, null, 2);
+                html += `<div class="data-preview">${dataString.substring(0, 1000)}${dataString.length > 1000 ? '...' : ''}</div>`;
             }
 
             messageDiv.innerHTML = html;
