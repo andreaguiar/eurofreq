@@ -1,165 +1,609 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EuroMillions Frequency Distribution</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      background-color: #1c1c1c;
-      color: #ccc;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 2rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    h1, h2 {
-      text-align: center;
-      color: #eee;
-    }
-    .container {
-      width: 100%;
-      max-width: 1000px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    canvas {
-      background-color: #2b2b2b;
-      padding: 1rem;
-      border-radius: 10px;
-      box-shadow: 0 0 10px #000;
-      margin-top: 2rem;
-    }
-    #countInput {
-      background-color: #333;
-      border: none;
-      color: #eee;
-      padding: 0.5rem;
-      border-radius: 5px;
-      margin-right: 0.5rem;
-    }
-    #fetchButton {
-      background-color: #444;
-      border: none;
-      color: #eee;
-      padding: 0.5rem 1rem;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    #fetchButton:hover {
-      background-color: #555;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EuroMillions Data Fetcher</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(40, 40, 40, 0.8);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            background: linear-gradient(45deg, #ffffff, #b0b0b0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+
+        .data-source-section {
+            margin-bottom: 30px;
+            background: rgba(50, 50, 50, 0.5);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .data-source-section h2 {
+            color: #f0f0f0;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .data-source-description {
+            color: #b0b0b0;
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .fetch-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        label {
+            color: #c0c0c0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input[type="number"] {
+            background: rgba(60, 60, 60, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #ffffff;
+            font-size: 14px;
+            width: 80px;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+
+        button {
+            background: linear-gradient(45deg, #404040, #505050);
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(45deg, #505050, #606060);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-flex;
+            align-items: center;
+            font-size: 14px;
+            color: #888;
+            margin-left: 15px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #666;
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .message {
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .success {
+            background: rgba(40, 100, 40, 0.3);
+            border: 1px solid rgba(80, 200, 80, 0.5);
+            color: #99ff99;
+        }
+
+        .error {
+            background: rgba(100, 40, 40, 0.3);
+            border: 1px solid rgba(200, 80, 80, 0.5);
+            color: #ff9999;
+        }
+
+        .warning {
+            background: rgba(100, 80, 40, 0.3);
+            border: 1px solid rgba(200, 160, 80, 0.5);
+            color: #ffcc99;
+        }
+
+        .data-preview {
+            background: rgba(30, 30, 30, 0.8);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .data-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: rgba(60, 60, 60, 0.6);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 3px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .fetch-controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>EuroMillions Frequency Distribution</h1>
-    <div style="text-align: center; margin-bottom: 1rem;">
-      <input type="number" id="countInput" value="20" min="1" />
-      <button id="fetchButton">Fetch Draws</button>
+    <div class="container">
+        <h1>EuroMillions Data Fetcher</h1>
+        
+        <div class="data-source-section">
+            <h2>Pedro Mealha's EuroMillions API</h2>
+            <div class="data-source-description">
+                Comprehensive API providing EuroMillions results since 2004 with analytics and statistics.
+            </div>
+            <div class="fetch-controls">
+                <div class="input-group">
+                    <label for="pedroLimit">Number of draws:</label>
+                    <input type="number" id="pedroLimit" value="50" min="1" max="1000">
+                </div>
+                <button onclick="fetchPedroData()" id="pedroBtn">Fetch Data</button>
+                <div class="loading" id="pedroLoading" style="display: none;">
+                    <div class="spinner"></div>
+                    Fetching...
+                </div>
+            </div>
+            <div id="pedroMessage"></div>
+        </div>
+
+        <div class="data-source-section">
+            <h2>UK National Lottery API</h2>
+            <div class="data-source-description">
+                Official UK National Lottery API that includes EuroMillions draws with detailed information.
+            </div>
+            <div class="fetch-controls">
+                <div class="input-group">
+                    <label for="ukLimit">Number of draws:</label>
+                    <input type="number" id="ukLimit" value="25" min="1" max="100">
+                </div>
+                <button onclick="fetchUKData()" id="ukBtn">Fetch Data</button>
+                <div class="loading" id="ukLoading" style="display: none;">
+                    <div class="spinner"></div>
+                    Fetching...
+                </div>
+            </div>
+            <div id="ukMessage"></div>
+        </div>
+
+        <div class="data-source-section">
+            <h2>Lottery Results API</h2>
+            <div class="data-source-description">
+                Third-party lottery results API providing recent EuroMillions draw data.
+            </div>
+            <div class="fetch-controls">
+                <div class="input-group">
+                    <label for="lotteryLimit">Number of draws:</label>
+                    <input type="number" id="lotteryLimit" value="30" min="1" max="200">
+                </div>
+                <button onclick="fetchLotteryData()" id="lotteryBtn">Fetch Data</button>
+                <div class="loading" id="lotteryLoading" style="display: none;">
+                    <div class="spinner"></div>
+                    Fetching...
+                </div>
+            </div>
+            <div id="lotteryMessage"></div>
+        </div>
+
+        <div class="data-source-section">
+            <h2>EuroMillions.com API</h2>
+            <div class="data-source-description">
+                Direct API from EuroMillions official sources with recent draw results.
+            </div>
+            <div class="fetch-controls">
+                <div class="input-group">
+                    <label for="officialLimit">Number of draws:</label>
+                    <input type="number" id="officialLimit" value="20" min="1" max="100">
+                </div>
+                <button onclick="fetchOfficialData()" id="officialBtn">Fetch Data</button>
+                <div class="loading" id="officialLoading" style="display: none;">
+                    <div class="spinner"></div>
+                    Fetching...
+                </div>
+            </div>
+            <div id="officialMessage"></div>
+        </div>
     </div>
-    <canvas id="mainChart" width="800" height="400"></canvas>
-    <h2>Lucky Stars Frequency</h2>
-    <canvas id="starsChart" width="800" height="400"></canvas>
-  </div>
 
-  <script>
-    let chartInstances = {};
-
-    async function fetchDraws(count) {
-      const proxyURL = "https://api.allorigins.win/raw?url=";
-      const rssURL = "https://www.euro-millions.com/results/feed/rss";
-      try {
-        const response = await fetch(proxyURL + encodeURIComponent(rssURL));
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const text = await response.text();
-
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, "application/xml");
-        const items = Array.from(xml.querySelectorAll("item")).slice(0, count);
-
-        const draws = items.map(item => {
-          const title = item.querySelector("title").textContent;
-          const regex = /\d{1,2}/g;
-          const numbers = title.match(regex).map(Number);
-          return {
-            main: numbers.slice(0, 5),
-            stars: numbers.slice(5, 7)
-          };
-        });
-
-        return draws;
-      } catch (err) {
-        console.error("Failed to fetch or parse EuroMillions draws:", err);
-        alert("Failed to fetch EuroMillions data. See console for details.");
-        return [];
-      }
-    }
-
-    document.getElementById('fetchButton').addEventListener('click', async () => {
-      console.log("Fetch button clicked");
-      const count = parseInt(document.getElementById('countInput').value);
-      const draws = await fetchDraws(count);
-      if (draws.length === 0) return;
-
-      const mainFreq = Array(50).fill(0);
-      const starFreq = Array(12).fill(0);
-
-      draws.forEach(draw => {
-        draw.main.forEach(n => mainFreq[n - 1]++);
-        draw.stars.forEach(n => starFreq[n - 1]++);
-      });
-
-      const sortedMain = mainFreq.map((val, idx) => ({ number: idx + 1, freq: val }))
-                                 .sort((a, b) => b.freq - a.freq);
-
-      const sortedStars = starFreq.map((val, idx) => ({ number: idx + 1, freq: val }))
-                                  .sort((a, b) => b.freq - a.freq);
-
-      renderChart('mainChart', sortedMain.map(e => e.number), sortedMain.map(e => e.freq), 'Main Numbers Frequency');
-      renderChart('starsChart', sortedStars.map(e => e.number), sortedStars.map(e => e.freq), 'Lucky Stars Frequency');
-    });
-
-    function renderChart(canvasId, labels, data, label) {
-      const ctx = document.getElementById(canvasId).getContext('2d');
-      if (chartInstances[canvasId]) {
-        chartInstances[canvasId].destroy();
-      }
-      chartInstances[canvasId] = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label,
-            data,
-            backgroundColor: '#888',
-            borderColor: '#bbb',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            x: {
-              ticks: { color: '#ccc' },
-              grid: { color: '#333' }
-            },
-            y: {
-              beginAtZero: true,
-              ticks: { color: '#ccc' },
-              grid: { color: '#333' }
+    <script>
+        async function fetchPedroData() {
+            const limit = document.getElementById('pedroLimit').value;
+            const btn = document.getElementById('pedroBtn');
+            const loading = document.getElementById('pedroLoading');
+            const messageDiv = document.getElementById('pedroMessage');
+            
+            btn.disabled = true;
+            loading.style.display = 'inline-flex';
+            messageDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch(`https://euromillions.api.pedromealha.dev/v1/draws?limit=${limit}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data || !Array.isArray(data) || data.length === 0) {
+                    messageDiv.innerHTML = '<div class="message error">No data received from Pedro Mealha\'s API</div>';
+                    return;
+                }
+                
+                // Verify data structure and content
+                const verification = verifyEuroMillionsData(data, 'pedro');
+                displayResults(messageDiv, data, verification, 'Pedro Mealha\'s API');
+                
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="message error">Error fetching from Pedro Mealha's API: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
             }
-          },
-          plugins: {
-            legend: { labels: { color: '#ccc' } }
-          }
         }
-      });
-    }
-  </script>
+
+        async function fetchUKData() {
+            const limit = document.getElementById('ukLimit').value;
+            const btn = document.getElementById('ukBtn');
+            const loading = document.getElementById('ukLoading');
+            const messageDiv = document.getElementById('ukMessage');
+            
+            btn.disabled = true;
+            loading.style.display = 'inline-flex';
+            messageDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch(`https://www.national-lottery.co.uk/api/draws/euromillions?limit=${limit}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data) {
+                    messageDiv.innerHTML = '<div class="message error">No data received from UK National Lottery API</div>';
+                    return;
+                }
+                
+                // Verify data structure and content
+                const verification = verifyEuroMillionsData(data, 'uk');
+                displayResults(messageDiv, data, verification, 'UK National Lottery API');
+                
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="message error">Error fetching from UK National Lottery API: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        async function fetchLotteryData() {
+            const limit = document.getElementById('lotteryLimit').value;
+            const btn = document.getElementById('lotteryBtn');
+            const loading = document.getElementById('lotteryLoading');
+            const messageDiv = document.getElementById('lotteryMessage');
+            
+            btn.disabled = true;
+            loading.style.display = 'inline-flex';
+            messageDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch(`https://api.lottery-results.com/euromillions/recent?limit=${limit}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data) {
+                    messageDiv.innerHTML = '<div class="message error">No data received from Lottery Results API</div>';
+                    return;
+                }
+                
+                // Verify data structure and content
+                const verification = verifyEuroMillionsData(data, 'lottery');
+                displayResults(messageDiv, data, verification, 'Lottery Results API');
+                
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="message error">Error fetching from Lottery Results API: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        async function fetchOfficialData() {
+            const limit = document.getElementById('officialLimit').value;
+            const btn = document.getElementById('officialBtn');
+            const loading = document.getElementById('officialLoading');
+            const messageDiv = document.getElementById('officialMessage');
+            
+            btn.disabled = true;
+            loading.style.display = 'inline-flex';
+            messageDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch(`https://api.euromillions.com/draws/recent?count=${limit}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data) {
+                    messageDiv.innerHTML = '<div class="message error">No data received from EuroMillions.com API</div>';
+                    return;
+                }
+                
+                // Verify data structure and content
+                const verification = verifyEuroMillionsData(data, 'official');
+                displayResults(messageDiv, data, verification, 'EuroMillions.com API');
+                
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="message error">Error fetching from EuroMillions.com API: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function verifyEuroMillionsData(data, source) {
+            const verification = {
+                isValid: false,
+                isUpToDate: false,
+                hasCorrectStructure: false,
+                drawCount: 0,
+                latestDate: null,
+                issues: []
+            };
+
+            try {
+                let draws = [];
+                
+                // Handle different data structures based on source
+                if (source === 'pedro') {
+                    draws = Array.isArray(data) ? data : [];
+                } else if (source === 'uk') {
+                    draws = data.draws || data.results || [];
+                } else {
+                    draws = data.draws || data.results || data;
+                    if (!Array.isArray(draws)) draws = [];
+                }
+
+                verification.drawCount = draws.length;
+
+                if (draws.length === 0) {
+                    verification.issues.push('No draws found in response');
+                    return verification;
+                }
+
+                // Check structure of first few draws
+                let validDraws = 0;
+                let dates = [];
+
+                for (let i = 0; i < Math.min(5, draws.length); i++) {
+                    const draw = draws[i];
+                    let mainNumbers = [];
+                    let starNumbers = [];
+                    let drawDate = null;
+
+                    // Extract numbers based on source structure
+                    if (source === 'pedro') {
+                        mainNumbers = draw.numbers || [];
+                        starNumbers = draw.stars || [];
+                        drawDate = draw.date;
+                    } else if (source === 'uk') {
+                        mainNumbers = draw.main_numbers || draw.numbers || [];
+                        starNumbers = draw.star_numbers || draw.stars || [];
+                        drawDate = draw.date || draw.draw_date;
+                    } else {
+                        mainNumbers = draw.main_numbers || draw.numbers || [];
+                        starNumbers = draw.star_numbers || draw.stars || [];
+                        drawDate = draw.date || draw.draw_date;
+                    }
+
+                    // Validate draw structure
+                    if (Array.isArray(mainNumbers) && mainNumbers.length === 5 &&
+                        Array.isArray(starNumbers) && starNumbers.length === 2 &&
+                        drawDate) {
+                        
+                        // Check if numbers are in valid ranges
+                        const validMain = mainNumbers.every(n => n >= 1 && n <= 50);
+                        const validStars = starNumbers.every(n => n >= 1 && n <= 12);
+                        
+                        if (validMain && validStars) {
+                            validDraws++;
+                            dates.push(new Date(drawDate));
+                        }
+                    }
+                }
+
+                verification.hasCorrectStructure = validDraws > 0;
+                
+                if (dates.length > 0) {
+                    verification.latestDate = new Date(Math.max(...dates));
+                    const daysSinceLatest = (Date.now() - verification.latestDate.getTime()) / (1000 * 60 * 60 * 24);
+                    verification.isUpToDate = daysSinceLatest <= 7; // Within last week
+                    
+                    if (daysSinceLatest > 7) {
+                        verification.issues.push(`Latest draw is ${Math.floor(daysSinceLatest)} days old`);
+                    }
+                }
+
+                verification.isValid = verification.hasCorrectStructure && verification.drawCount > 0;
+
+                if (validDraws < Math.min(3, draws.length)) {
+                    verification.issues.push('Some draws have invalid structure or number ranges');
+                }
+
+            } catch (error) {
+                verification.issues.push(`Verification error: ${error.message}`);
+            }
+
+            return verification;
+        }
+
+        function displayResults(messageDiv, data, verification, sourceName) {
+            let messageClass = 'error';
+            let messageText = '';
+
+            if (verification.isValid) {
+                if (verification.isUpToDate) {
+                    messageClass = 'success';
+                    messageText = `✅ Data verified successfully! Fetched ${verification.drawCount} legitimate EuroMillions draws from ${sourceName}.`;
+                } else {
+                    messageClass = 'warning';
+                    messageText = `⚠️ Data structure is valid but may not be up-to-date. Fetched ${verification.drawCount} draws from ${sourceName}.`;
+                }
+            } else {
+                messageText = `❌ Data verification failed for ${sourceName}. ${verification.issues.join(', ')}.`;
+            }
+
+            let html = `<div class="message ${messageClass}">${messageText}</div>`;
+
+            if (verification.drawCount > 0) {
+                html += `
+                    <div class="data-stats">
+                        <div class="stat-item">
+                            <div class="stat-value">${verification.drawCount}</div>
+                            <div class="stat-label">Draws Fetched</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${verification.isValid ? '✅' : '❌'}</div>
+                            <div class="stat-label">Data Valid</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${verification.isUpToDate ? '✅' : '❌'}</div>
+                            <div class="stat-label">Up-to-Date</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${verification.latestDate ? verification.latestDate.toLocaleDateString() : 'N/A'}</div>
+                            <div class="stat-label">Latest Draw</div>
+                        </div>
+                    </div>
+                `;
+
+                // Show sample data
+                html += `<div class="data-preview">${JSON.stringify(data, null, 2).substring(0, 1000)}${JSON.stringify(data, null, 2).length > 1000 ? '...' : ''}</div>`;
+            }
+
+            messageDiv.innerHTML = html;
+        }
+    </script>
 </body>
 </html>
